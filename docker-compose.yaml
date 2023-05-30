@@ -1,0 +1,9 @@
+version: "3.8"
+
+services:
+  tumbleweed:
+    build: .
+    volumes:
+      - .:/home/developer/code
+    stdin_open: true
+    tty: true
