@@ -13,8 +13,6 @@ use openssl::{
 static KEY_GROUP: Lazy<EcGroup> =
     Lazy::new(|| EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap());
 
-static HASHING_ALG: Nid = Nid::HMAC_SHA1;
-
 static BOB_PRIVATE_KEY: &'static [u8] = &[
     45, 45, 45, 45, 45, 66, 69, 71, 73, 78, 32, 80, 82, 73, 86, 65, 84, 69, 32, 75, 69, 89, 45, 45,
     45, 45, 45, 10, 77, 73, 71, 72, 65, 103, 69, 65, 77, 66, 77, 71, 66, 121, 113, 71, 83, 77, 52,
@@ -60,13 +58,18 @@ fn main() {}
 
 fn derive_shared_key(private: PKey<Private>, public: PKey<Public>) -> Vec<u8> {
     let mut private_key_ctx: PkeyCtx<Private> = PkeyCtx::new(&private).unwrap();
-    private_key_ctx.derive_init();
-    private_key_ctx.derive_set_peer(&public);
+    private_key_ctx
+        .derive_init()
+        .expect("failed to init key derivation");
+    private_key_ctx
+        .derive_set_peer(&public)
+        .expect("failed to set peer key");
     let keylen = private_key_ctx.derive(None).unwrap();
     let mut tmp_vec = vec![0; keylen];
     let buffer = tmp_vec.as_mut_slice();
-    let outcome = private_key_ctx.derive(Some(buffer));
-    dbg!(keylen, outcome);
+    private_key_ctx
+        .derive(Some(buffer))
+        .expect("failed to derive shared secret");
     return buffer.to_vec();
 }
 
@@ -108,7 +111,9 @@ fn compute_totp(key: &[u8]) -> Vec<u8> {
     let current_time_rounded_as_bytes: &[u8] = &current_time_rounded.timestamp().to_be_bytes();
     let p_key = PKey::hmac(key).unwrap();
     let mut signer = Signer::new(MessageDigest::sha256(), &p_key).unwrap();
-    signer.update(current_time_rounded_as_bytes);
+    signer
+        .update(current_time_rounded_as_bytes)
+        .expect("failed to update signer");
     signer.sign_to_vec().unwrap()
 }
 #[test]
