@@ -111,6 +111,19 @@ fn compute_totp(key: &[u8]) -> Vec<u8> {
     signer.update(current_time_rounded_as_bytes);
     signer.sign_to_vec().unwrap()
 }
+#[test]
+fn test_key_derivation() {
+    let alice_private_key = PKey::from_ec_key(ALICE.private_key.clone()).unwrap();
+    let alice_public_key =
+        PKey::public_key_from_pem(alice_private_key.public_key_to_pem().unwrap().as_slice())
+            .unwrap();
+    let bob_private_key = PKey::from_ec_key(BOB.private_key.clone()).unwrap();
+    let bob_public_key =
+        PKey::public_key_from_pem(bob_private_key.public_key_to_pem().unwrap().as_slice()).unwrap();
+    let alice_shared_secret = derive_shared_key(alice_private_key, bob_public_key);
+    let bob_shared_secret = derive_shared_key(bob_private_key, alice_public_key);
+    assert!(memcmp::eq(&alice_shared_secret, &bob_shared_secret));
+}
 
 #[test]
 fn test() {
