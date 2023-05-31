@@ -5,7 +5,7 @@ use openssl::{
     hash::MessageDigest,
     memcmp,
     nid::Nid,
-    pkey::{PKey, Private},
+    pkey::{PKey, Private, Public},
     pkey_ctx::PkeyCtx,
     sha,
     sign::Signer,
@@ -58,23 +58,24 @@ struct User<'a> {
 
 fn main() {}
 
-fn derive_shared_key() -> Vec<u8> {
-    let alice_p_key = PKey::from_ec_key(ALICE.private_key.clone()).unwrap();
-    let mut alice_ctx: PkeyCtx<Private> = PkeyCtx::new(&alice_p_key).unwrap();
-    let bob_p_key = PKey::from_ec_key(BOB.private_key.clone()).unwrap();
-
-    alice_ctx.derive_init();
-    alice_ctx.derive_set_peer(&bob_p_key);
-    let keylen = alice_ctx.derive(None).unwrap();
+fn derive_shared_key(private: PKey<Private>, public: PKey<Public>) -> Vec<u8> {
+    let mut private_key_ctx: PkeyCtx<Private> = PkeyCtx::new(&private).unwrap();
+    private_key_ctx.derive_init();
+    private_key_ctx.derive_set_peer(&public);
+    let keylen = private_key_ctx.derive(None).unwrap();
     let mut tmp_vec = vec![0; keylen];
     let buffer = tmp_vec.as_mut_slice();
-    let outcome = alice_ctx.derive(Some(buffer));
+    let outcome = private_key_ctx.derive(Some(buffer));
     dbg!(keylen, outcome);
     return buffer.to_vec();
 }
 
 fn alice_server() -> (Vec<u8>, Vec<u8>) {
-    let mut shared_secret_1 = derive_shared_key();
+    let alice_private_key = PKey::from_ec_key(ALICE.private_key.clone()).unwrap();
+    let bob_private_key = PKey::from_ec_key(BOB.private_key.clone()).unwrap();
+    let bob_public_key =
+        PKey::public_key_from_pem(bob_private_key.public_key_to_pem().unwrap().as_slice()).unwrap();
+    let mut shared_secret_1 = derive_shared_key(alice_private_key, bob_public_key);
     let mut shared_secret_2 = shared_secret_1.clone();
     shared_secret_1.append(ALICE.uuid.to_vec().as_mut());
     shared_secret_2.append(BOB.uuid.to_vec().as_mut());
@@ -84,7 +85,12 @@ fn alice_server() -> (Vec<u8>, Vec<u8>) {
 }
 
 fn bob_server() -> (Vec<u8>, Vec<u8>) {
-    let mut shared_secret_1 = derive_shared_key();
+    let bob_private_key = PKey::from_ec_key(BOB.private_key.clone()).unwrap();
+    let alice_private_key = PKey::from_ec_key(ALICE.private_key.clone()).unwrap();
+    let alice_public_key =
+        PKey::public_key_from_pem(alice_private_key.public_key_to_pem().unwrap().as_slice())
+            .unwrap();
+    let mut shared_secret_1 = derive_shared_key(bob_private_key, alice_public_key);
     let mut shared_secret_2 = shared_secret_1.clone();
 
     shared_secret_1.append(ALICE.uuid.to_vec().as_mut());
